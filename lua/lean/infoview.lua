@@ -121,6 +121,7 @@ function M.enable(opts)
   M._opts = opts
   if M._opts.one_per_tab == nil then M._opts.one_per_tab = true end
   M.set_update()
+  M.set_close()
 end
 
 function M.set_update()
@@ -140,6 +141,26 @@ function M.set_update()
   ]], idx_call, idx_call), false)
 end
 
+function M.set_close()
+  local idx_call
+  local close_evt
+  if M._opts.one_per_tab then
+    idx_call = "vim.api.nvim_get_current_tabpage()"
+    close_evt = "TabClosed"
+  else
+    idx_call = "vim.api.nvim_get_current_win()"
+    close_evt = "WinClosed"
+  end
+  -- TODO: update autocommand to use filetypes rather than extension
+  vim.api.nvim_exec(string.format([[
+    augroup LeanInfoViewClose
+      autocmd!
+      autocmd %s lua require'lean.infoview'.close_win(%s)
+    augroup END
+  ]], close_evt, idx_call), false)
+end
+
+
 function M.is_open() return M._infoviews_open[vim.api.nvim_get_current_win()] ~= false end
 
 function M.open()
@@ -155,6 +176,7 @@ function M.set_pertab()
   M._opts.one_per_tab = true
 
   M.set_update()
+  M.set_close()
 end
 
 function M.set_perwindow()
@@ -165,6 +187,7 @@ function M.set_perwindow()
   M._opts.one_per_tab = false
 
   M.set_update()
+  M.set_close()
 end
 
 function M.close_all()
