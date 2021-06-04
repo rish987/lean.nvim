@@ -148,14 +148,34 @@ function M.set_autocmds()
   vim.api.nvim_exec(string.format([[
     augroup LeanInfoView
       autocmd!
-      autocmd FileType lean autocmd CursorHold <buffer> lua require'lean.infoview'.update()
-      autocmd FileType lean autocmd CursorHoldI <buffer> lua require'lean.infoview'.update()
-      autocmd FileType lean4 autocmd CursorHold <buffer> lua require'lean.infoview'.update()
-      autocmd FileType lean4 autocmd CursorHoldI <buffer> lua require'lean.infoview'.update()
-      autocmd FileType lean autocmd WinClosed <buffer> lua require'lean.infoview'.close_win_wrapper(tonumber(vim.fn.expand('<afile>')))
-      autocmd FileType lean4 autocmd WinClosed <buffer> lua require'lean.infoview'.close_win_wrapper(tonumber(vim.fn.expand('<afile>')))
+      autocmd FileType lean lua require'lean.infoview'.set_update_autocmds()
+      autocmd FileType lean4 lua require'lean.infoview'.set_update_autocmds()
+      autocmd FileType lean lua require'lean.infoview'.set_closed_autocmds()
+      autocmd FileType lean4 lua require'lean.infoview'.set_closed_autocmds()
    augroup END
   ]]), false)
+end
+
+local function set_autocmds_guard(group, autocmds)
+  vim.api.nvim_exec(string.format([[
+    augroup %s
+      autocmd! %s * <buffer>
+      %s
+   augroup END
+  ]], group, group, autocmds), false)
+end
+
+function M.set_update_autocmds()
+  set_autocmds_guard("LeanInfoViewUpdate", [[
+    autocmd CursorHold <buffer> lua require'lean.infoview'.update()
+    autocmd CursorHoldI <buffer> lua require'lean.infoview'.update()
+  ]])
+end
+
+function M.set_closed_autocmds()
+  set_autocmds_guard("LeanInfoViewClose", [[
+    autocmd WinClosed <buffer> lua require'lean.infoview'.close_win_wrapper(tonumber(vim.fn.expand('<afile>')))
+  ]])
 end
 
 function M.close_win_wrapper(src_winnr)
