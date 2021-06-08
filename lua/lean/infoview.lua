@@ -1,4 +1,4 @@
-local M = {_infoviews = {}, _infoviews_open = {}, _opts = {}}
+local M = {_infoviews = {}, _opts = {}}
 
 local _INFOVIEW_BUF_NAME = 'lean://infoview'
 local _DEFAULT_BUF_OPTIONS = {
@@ -43,22 +43,15 @@ local function refresh_infos()
   end
 end
 
--- either erase infoview information from table (erase=true)
--- or indicate it has been closed (erase=false)
-local function close_win_raw(src_idx, erase)
-  if erase then
-    M._infoviews_open[src_idx] = nil
-  else
-    M._infoviews_open[src_idx] = false
-  end
+local function close_win_raw(src_idx)
   M._infoviews[src_idx] = nil
 
   -- necessary because closing a window can cause others to resize
   refresh_infos()
 end
 
--- physically close infoview, then either erase it or mark it as closed
-local function close_win(src_idx, erase)
+-- physically close infoview
+local function close_win(src_idx)
   if M._infoviews[src_idx] then
     vim.api.nvim_win_close(M._infoviews[src_idx].win, true)
   end
@@ -68,7 +61,7 @@ local function close_win(src_idx, erase)
   --  vim.api.nvim_buf_delete(M._infoviews[src_win].buf, { force = true })
   --end
 
-  close_win_raw(src_idx, erase)
+  close_win_raw(src_idx)
 end
 
 -- create autocmds under the specified group and local to
@@ -93,50 +86,11 @@ end
 function M.update()
   local src_idx = get_idx()
 
-  if M._infoviews_open[src_idx] == false then
+  if not M._infoviews[src_idx] then
       return
   end
 
-  local infoview_bufnr
-  local infoview = M._infoviews[src_idx]
-  if not infoview then
-    M._infoviews[src_idx] = {}
-
-    infoview_bufnr = vim.api.nvim_create_buf(false, true)
-    vim.api.nvim_buf_set_name(infoview_bufnr, _INFOVIEW_BUF_NAME .. infoview_bufnr)
-    for name, value in pairs(_DEFAULT_BUF_OPTIONS) do
-      vim.api.nvim_buf_set_option(infoview_bufnr, name, value)
-    end
-
-    local current_window = vim.api.nvim_get_current_win()
-    local current_tab = vim.api.nvim_get_current_tabpage()
-
-    if M._opts.one_per_tab then
-      vim.cmd "botright vsplit"
-    else
-      vim.cmd "rightbelow vsplit"
-    end
-    vim.cmd(string.format("buffer %d", infoview_bufnr))
-
-    local window = vim.api.nvim_get_current_win()
-
-    for name, value in pairs(_DEFAULT_WIN_OPTIONS) do
-      vim.api.nvim_win_set_option(window, name, value)
-    end
-    -- This makes the infoview robust to manually being closed by the user
-    -- (though they technically shouldn't do this).
-    -- It makes sure that the infoview is erased from the table when this happens.
-    set_autocmds_guard("LeanInfoViewWindow", string.format([[
-      autocmd WinClosed <buffer> lua require'lean.infoview'.close_win_wrapper(%s, %s, false, true)
-    ]], current_window, current_tab), 0)
-    vim.api.nvim_set_current_win(current_window)
-
-    M._infoviews[src_idx].buf = infoview_bufnr
-    M._infoviews[src_idx].win = window
-
-  else
-    infoview_bufnr = infoview.buf
-  end
+  local infoview_bufnr = M._infoviews[src_idx].buf
 
   refresh_infos()
 
@@ -258,20 +212,58 @@ function M.close_win_wrapper(src_winnr, src_tabnr, close_info, already_closed)
 
   if close_info then
     -- if closing with :q, close the infoview as well
-    close_win(src_idx, true)
+    close_win(src_idx)
   else
     -- if closing with ctrl-W + c, just detach the infoview and leave it there
-    close_win_raw(src_idx, true)
+    close_win_raw(src_idx)
   end
 end
 
 function M.is_open()
-  return M._infoviews_open[get_idx()] ~= false
+  return M._infoviews[get_idx()] ~= nil
 end
 
 function M.open()
   local src_idx = get_idx()
-  M._infoviews_open[src_idx] = true
+
+  if M._infoviews[src_idx] ~= nil then return M._infoviews[src_idx] end
+
+  M._infoviews[src_idx] = {}
+
+  local infoview_bufnr = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_name(infoview_bufnr, _INFOVIEW_BUF_NAME .. infoview_bufnr)
+  for name, value in pairs(_DEFAULT_BUF_OPTIONS) do
+    vim.api.nvim_buf_set_option(infoview_bufnr, name, value)
+  end
+
+  local current_window = vim.api.nvim_get_current_win()
+  local current_tab = vim.api.nvim_get_current_tabpage()
+
+  if M._opts.one_per_tab then
+    vim.cmd "botright vsplit"
+  else
+    vim.cmd "rightbelow vsplit"
+  end
+  vim.cmd(string.format("buffer %d", infoview_bufnr))
+
+  local window = vim.api.nvim_get_current_win()
+
+  for name, value in pairs(_DEFAULT_WIN_OPTIONS) do
+    vim.api.nvim_win_set_option(window, name, value)
+  end
+  -- This makes the infoview robust to manually being closed by the user
+  -- (though they technically shouldn't do this).
+  -- It makes sure that the infoview is erased from the table when this happens.
+  set_autocmds_guard("LeanInfoViewWindow", string.format([[
+    autocmd WinClosed <buffer> lua require'lean.infoview'.close_win_wrapper(%s, %s, false, true)
+  ]], current_window, current_tab), 0)
+  vim.api.nvim_set_current_win(current_window)
+
+  M._infoviews[src_idx].buf = infoview_bufnr
+  M._infoviews[src_idx].win = window
+
+  refresh_infos()
+
   return M._infoviews[src_idx]
 end
 
@@ -294,17 +286,14 @@ end
 function M.close_all()
   -- close all current infoviews
   for key, _ in pairs(M._infoviews) do
-    close_win(key, false)
-  end
-  for key, _ in pairs(M._infoviews_open) do
-    M._infoviews_open[key] = nil
+    close_win(key)
   end
 end
 
 function M.close()
   if not M.is_open() then return end
 
-  close_win(get_idx(), false)
+  close_win(get_idx())
 end
 
 function M.toggle()
