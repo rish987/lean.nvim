@@ -26,12 +26,8 @@ local _SEVERITY = {
 -- the given buffer; clears any existing autocmds
 -- from the buffer beforehand
 local function set_autocmds_guard(group, autocmds, bufnum)
-  local buffer_string
-  if bufnum == 0 then
-    buffer_string = "<buffer>"
-  else
-    buffer_string = string.format("<buffer=%d>", bufnum)
-  end
+  local buffer_string = bufnum == 0 and "<buffer>"
+    or string.format("<buffer=%d>", bufnum)
 
   vim.api.nvim_exec(string.format([[
     augroup %s
@@ -50,8 +46,7 @@ local function infoviews(src_idx) return _infoviews()[src_idx] end
 
 -- get infoview index (either window number or tabpage depending on per-win/per-tab mode)
 local function get_idx()
-  if M._opts.one_per_tab then return vim.api.nvim_get_current_tabpage() end
-  return vim.api.nvim_get_current_win()
+  return M._opts.one_per_tab and vim.api.nvim_get_current_tabpage() or vim.api.nvim_get_current_win()
 end
 
 local function open_win(infoview)
@@ -93,8 +88,7 @@ end
 
 -- check is the given index still points to a valid tab/window
 local function idx_is_valid(idx)
-  if M._opts.one_per_tab then return vim.api.nvim_tabpage_is_valid(idx) end
-  return vim.api.nvim_win_is_valid(idx)
+  return M._opts.one_per_tab and vim.api.nvim_tabpage_is_valid(idx) or vim.api.nvim_win_is_valid(idx)
 end
 
 local function refresh_infos()
@@ -124,9 +118,7 @@ end
 -- the window will have its display data deleted
 local function close_win_raw(src_idx, close)
   if not infoviews(src_idx) then return end
-  if close then
-    infoviews(src_idx).open = false
-  end
+  if close then infoviews(src_idx).open = false end
 
   -- always clear the window/buffer data
   infoviews(src_idx).data = nil
