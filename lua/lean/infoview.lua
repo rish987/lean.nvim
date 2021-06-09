@@ -97,7 +97,9 @@ local function refresh_infos()
     if not idx_is_valid(key) then
       _infoviews()[key] = nil
     else
-      open_win(infoview)
+      if infoview.open ~= false then
+        open_win(infoview)
+      end
     end
   end
   for _, infoview in pairs(_infoviews()) do
