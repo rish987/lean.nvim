@@ -49,7 +49,8 @@ local function get_idx()
   return M._opts.one_per_tab and vim.api.nvim_get_current_tabpage() or vim.api.nvim_get_current_win()
 end
 
-local function open_win(infoview)
+local function open_win(idx)
+  local infoview = infoviews(idx)
   if not infoview.data then
     infoview.data = {}
     local infoview_bufnr = vim.api.nvim_create_buf(false, true)
@@ -91,17 +92,30 @@ local function idx_is_valid(idx)
   return M._opts.one_per_tab and vim.api.nvim_tabpage_is_valid(idx) or vim.api.nvim_win_is_valid(idx)
 end
 
+local function set_idx(idx)
+  if M._opts.one_per_tab then
+    vim.api.nvim_set_current_tabpage(idx)
+  else
+    vim.api.nvim_set_current_win(idx)
+  end
+end
+
 local function refresh_infos()
+  local current_window = vim.api.nvim_get_current_win()
   for key, infoview in pairs(_infoviews()) do
     -- clear any windows/tabs that have been closed
     if not idx_is_valid(key) then
       _infoviews()[key] = nil
     else
       if infoview.open ~= false then
-        open_win(infoview)
+        -- go to that window/tab to ensure that the infoview
+        -- is made in the right place
+        set_idx(key)
+        open_win(key)
       end
     end
   end
+  vim.api.nvim_set_current_win(current_window)
   for _, infoview in pairs(_infoviews()) do
     if not infoview.data then goto continue end
     local window = infoview.data.win
