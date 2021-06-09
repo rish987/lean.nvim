@@ -1,4 +1,4 @@
-local M = {_infoviews = {}, _infoviews_open = {}, _opts = {}}
+local M = {_infoviews_wins = {}, _infoviews_tabs = {}, _opts = {}}
 
 local _INFOVIEW_BUF_NAME = 'lean://infoview'
 local _DEFAULT_BUF_OPTIONS = {
@@ -22,55 +22,6 @@ local _SEVERITY = {
   [4] = "hint",
 }
 
--- get infoview index (either window number or tabpage depending on per-win/per-tab mode)
-local function get_idx()
-  local src_win
-  if M._opts.one_per_tab then
-    src_win = vim.api.nvim_get_current_tabpage()
-  else
-    src_win = vim.api.nvim_get_current_win()
-  end
-  return src_win
-end
-
-local function refresh_infos()
-  for key, _ in pairs(M._infoviews) do
-    local window = M._infoviews[key].win
-    local max_width = M._opts.max_width or 79
-    if vim.api.nvim_win_get_width(window) > max_width then
-      vim.api.nvim_win_set_width(window, max_width)
-    end
-  end
-end
-
--- either erase infoview information from table (erase=true)
--- or indicate it has been closed (erase=false)
-local function close_win_raw(src_idx, erase)
-  if erase then
-    M._infoviews_open[src_idx] = nil
-  else
-    M._infoviews_open[src_idx] = false
-  end
-  M._infoviews[src_idx] = nil
-
-  -- necessary because closing a window can cause others to resize
-  refresh_infos()
-end
-
--- physically close infoview, then either erase it or mark it as closed
-local function close_win(src_idx, erase)
-  if M._infoviews[src_idx] then
-    vim.api.nvim_win_close(M._infoviews[src_idx].win, true)
-  end
-
-  -- NOTE: it seems this isn't necessary since unlisted buffers are deleted automatically?
-  --if M._infoviews[src_win].buf then
-  --  vim.api.nvim_buf_delete(M._infoviews[src_win].buf, { force = true })
-  --end
-
-  close_win_raw(src_idx, erase)
-end
-
 -- create autocmds under the specified group and local to
 -- the given buffer; clears any existing autocmds
 -- from the buffer beforehand
@@ -90,19 +41,23 @@ local function set_autocmds_guard(group, autocmds, bufnum)
   ]], group, group, buffer_string, autocmds), false)
 end
 
-function M.update()
-  local src_idx = get_idx()
+local function _infoviews()
+  if M._opts.one_per_tab then return M._infoviews_tabs end
+  return M._infoviews_wins
+end
 
-  if M._infoviews_open[src_idx] == false then
-      return
-  end
+local function infoviews(src_idx) return _infoviews()[src_idx] end
 
-  local infoview_bufnr
-  local infoview = M._infoviews[src_idx]
-  if not infoview then
-    M._infoviews[src_idx] = {}
+-- get infoview index (either window number or tabpage depending on per-win/per-tab mode)
+local function get_idx()
+  if M._opts.one_per_tab then return vim.api.nvim_get_current_tabpage() end
+  return vim.api.nvim_get_current_win()
+end
 
-    infoview_bufnr = vim.api.nvim_create_buf(false, true)
+local function open_win(infoview)
+  if not infoview.data then
+    infoview.data = {}
+    local infoview_bufnr = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_name(infoview_bufnr, _INFOVIEW_BUF_NAME .. infoview_bufnr)
     for name, value in pairs(_DEFAULT_BUF_OPTIONS) do
       vim.api.nvim_buf_set_option(infoview_bufnr, name, value)
@@ -131,14 +86,80 @@ function M.update()
     ]], current_window, current_tab), 0)
     vim.api.nvim_set_current_win(current_window)
 
-    M._infoviews[src_idx].buf = infoview_bufnr
-    M._infoviews[src_idx].win = window
+    infoview.data.buf = infoview_bufnr
+    infoview.data.win = window
+  end
+end
 
-  else
-    infoview_bufnr = infoview.buf
+-- check is the given index still points to a valid tab/window
+local function idx_is_valid(idx)
+  if M._opts.one_per_tab then return vim.api.nvim_tabpage_is_valid(idx) end
+  return vim.api.nvim_win_is_valid(idx)
+end
+
+local function refresh_infos()
+  for key, infoview in pairs(_infoviews()) do
+    -- clear any windows/tabs that have been closed
+    if not idx_is_valid(key) then
+      _infoviews()[key] = nil
+    else
+      open_win(infoview)
+    end
+  end
+  for _, infoview in pairs(_infoviews()) do
+    if not infoview.data then goto continue end
+    local window = infoview.data.win
+    local max_width = M._opts.max_width or 79
+    if vim.api.nvim_win_get_width(window) > max_width then
+      vim.api.nvim_win_set_width(window, max_width)
+    end
+    ::continue::
+  end
+end
+
+-- clear window/buffer data, optionally indicating closure
+-- i.e. if close = true, then
+-- the window will be marked as closed and its display data deleted
+-- but if close = false, then
+-- the window will have its display data deleted
+local function close_win_raw(src_idx, close)
+  if not infoviews(src_idx) then return end
+  if close then
+    infoviews(src_idx).open = false
+  end
+
+  -- always clear the window/buffer data
+  infoviews(src_idx).data = nil
+end
+
+-- physically close infoview, optionally indicating closure
+local function close_win(src_idx, close)
+  if infoviews(src_idx).data then
+    vim.api.nvim_win_close(infoviews(src_idx).data.win, true)
+  end
+
+  -- NOTE: it seems this isn't necessary since unlisted buffers are deleted automatically?
+  --if M._infoviews[src_win].buf then
+  --  vim.api.nvim_buf_delete(M._infoviews[src_win].buf, { force = true })
+  --end
+
+  close_win_raw(src_idx, close)
+end
+
+function M.update()
+  local src_idx = get_idx()
+
+  -- TODO: make the default value for 'open' user-configurable
+  if not infoviews(src_idx) then
+    _infoviews()[src_idx] = { data = nil, open = true }
   end
 
   refresh_infos()
+
+  local infoview = infoviews(src_idx)
+
+  if infoview.open == false then return end
+  local infoview_bufnr = infoview.data.buf
 
   local _update = vim.bo.ft == "lean3" and require('lean.lean3').update_infoview or function(set_lines)
     local current_buffer = vim.api.nvim_get_current_buf()
@@ -250,61 +271,65 @@ function M.close_win_wrapper(src_winnr, src_tabnr, close_info, already_closed)
   if not close_info and not already_closed then
     -- this check is needed since apparently WinClosed can be triggered
     -- multiple times for a single window close?
-    if M._infoviews[src_idx] ~= nil then
+    if infoviews(src_idx) and infoviews(src_idx).data ~= nil then
       -- remove these autocmds so the infoview can now be closed manually without issue
-      set_autocmds_guard("LeanInfoViewWindow", "", M._infoviews[src_idx].buf)
+      set_autocmds_guard("LeanInfoViewWindow", "", infoviews(src_idx).data.buf)
     end
   end
 
   if close_info then
     -- if closing with :q, close the infoview as well
-    close_win(src_idx, true)
+    close_win(src_idx, false)
   else
     -- if closing with ctrl-W + c, just detach the infoview and leave it there
-    close_win_raw(src_idx, true)
+    close_win_raw(src_idx, false)
   end
 end
 
 function M.is_open()
-  return M._infoviews_open[get_idx()] ~= false
+  return infoviews(get_idx()).open ~= false
 end
 
 function M.open()
   local src_idx = get_idx()
-  M._infoviews_open[src_idx] = true
-  return M._infoviews[src_idx]
+  infoviews(src_idx).open = true
+  return infoviews(src_idx).data
 end
 
 function M.set_pertab()
   if M._opts.one_per_tab then return end
 
-  M.close_all()
+  M.close_all(false)
 
   M._opts.one_per_tab = true
+
+  refresh_infos()
 end
 
 function M.set_perwindow()
   if not M._opts.one_per_tab then return end
 
-  M.close_all()
+  M.close_all(false)
 
   M._opts.one_per_tab = false
+
+  refresh_infos()
 end
 
-function M.close_all()
+function M.close_all(close)
   -- close all current infoviews
-  for key, _ in pairs(M._infoviews) do
-    close_win(key, false)
-  end
-  for key, _ in pairs(M._infoviews_open) do
-    M._infoviews_open[key] = nil
+  for key, _ in pairs(_infoviews()) do
+    close_win(key, close)
   end
 end
 
 function M.close()
   if not M.is_open() then return end
 
-  close_win(get_idx(), false)
+  close_win(get_idx(), true)
+
+  -- necessary because closing a window can cause others to resize
+  refresh_infos()
 end
 
 function M.toggle()
