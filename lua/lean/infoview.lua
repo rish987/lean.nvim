@@ -229,7 +229,7 @@ function M.update()
 end
 
 function M.enable(opts)
-  opts.one_per_tab = opts.one_per_tab or true
+  if opts.one_per_tab == nil then opts.one_per_tab = true end
   M._opts = opts
   M.set_autocmds()
 end
@@ -290,7 +290,7 @@ function M.close_win_wrapper(src_winnr, src_tabnr, close_info, already_closed)
     end
   end
 
-  if not close_info and not already_closed then
+  if not already_closed then
     -- this check is needed since apparently WinClosed can be triggered
     -- multiple times for a single window close?
     if infoviews(src_idx) and infoviews(src_idx).data ~= nil then
