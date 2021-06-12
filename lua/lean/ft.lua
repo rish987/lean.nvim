@@ -11,19 +11,16 @@ function M.init3()
   vim.b.lean3 = true
 end
 
-function M.is_lean3_project()
-  local project_root = find_project_root(vim.api.nvim_buf_get_name(0))
-  if not project_root then return false end
-  local result = vim.fn.readfile(project_root .. '/leanpkg.toml')
-  for _, line in ipairs(result) do
-    if line:match(_MARKER) then return true end
-  end
-  return false
-end
-
 function M.detect()
-  if M.is_lean3_project() then M.init3() end
   vim.bo.ft = "lean"
+  local project_root = find_project_root(vim.api.nvim_buf_get_name(0))
+  if project_root then
+    local result = vim.fn.readfile(project_root .. '/leanpkg.toml')
+    for _, line in ipairs(result) do
+      if line:match(_MARKER) then vim.bo.ft = "lean3" end
+    end
+  end
+  if vim.bo.ft == "lean3" then M.init3() end
 end
 
 return M
