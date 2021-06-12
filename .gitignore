@@ -1,3 +1,4 @@
 packpath/
 *.olean
 leanpkg.path
+/test/lean/build
