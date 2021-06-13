@@ -1,5 +1,10 @@
 local M = {}
 
+function M.init()
+  pcall(vim.cmd, 'TSBufDisable highlight')  -- tree-sitter-lean is lean4-only
+  vim.b.lean3 = true
+end
+
 function M.update_infoview(set_lines)
   local params = vim.lsp.util.make_position_params()
   return vim.lsp.buf_request(0, "textDocument/hover", params, function(_, _, result)
