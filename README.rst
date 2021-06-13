@@ -8,6 +8,10 @@ lean.nvim
 Prerequisites
 -------------
 
+NOTE: ``lean.nvim`` is incompatible with ``lean.vim``, 
+as it implements its own kind of filetype detection.
+If using ``lean.nvim``, you should NOT have ``lean.vim`` installed.
+
 ``lean.nvim`` currently requires `neovim 0.5 HEAD / nightly
 <https://github.com/neovim/neovim/releases/tag/nightly>`_.
 
