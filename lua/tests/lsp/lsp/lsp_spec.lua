@@ -1,23 +1,26 @@
 local helpers = require('tests.helpers')
 
-local function try_lsp_req(pos, method)
+local function try_lsp_req(pos, method, parser)
   vim.api.nvim_win_set_cursor(0, pos)
   local params = vim.lsp.util.make_position_params()
+
+  local text
 
   local req_result
   local success, _ = vim.wait(10000, function()
     local results = vim.lsp.buf_request_sync(0, method, params)
-    if results[1] and results[1] == nil then return false end
+    if not results or results[1] and results[1] == nil then return false end
 
     for _, result in pairs(results) do
       req_result = result.result
     end
-    if req_result then return true end
+    text = parser(req_result)
+    if text and text ~= "" then return true end
 
     return false
   end, 1000)
 
-  return success and req_result
+  return success and text
 end
 
 describe('basic lsp', function()
@@ -28,28 +31,30 @@ describe('basic lsp', function()
   it('lean 3', function()
     vim.api.nvim_command("edit lua/tests/fixtures/example-lean3-project/test.lean")
     helpers.wait_for_ready_lsp()
-    vim.wait(6000)
 
     it('hover', function()
-      local result = try_lsp_req({3, 20}, "textDocument/hover")
-      assert.message("hover request failed").is_truthy(result)
-      assert.is_not_nil(result.contents)
-      assert.are_equal(type(result.contents), "table")
-      local lines = {}
-      for _, contents in ipairs(result.contents) do
-        if contents.language == 'lean' then
-          vim.list_extend(lines, {contents.value})
+      local text = try_lsp_req({3, 20}, "textDocument/hover",
+      function(result)
+        if not result.contents or not type(result.contents) == "table" then return nil end
+        local lines = {}
+        for _, contents in ipairs(result.contents) do
+          if contents.language == 'lean' then
+            if not type(contents.value) == string then return nil end
+            vim.list_extend(lines, {contents.value})
+          end
         end
-      end
-      local text = table.concat(lines, "\n")
+        return table.concat(lines, "\n")
+      end)
+      assert.message("hover request never received parseable data").is_truthy(text)
       assert.has_all(text, {"test : ℕ"})
     end)
     it('definition', function()
-      local result = try_lsp_req({3, 20}, "textDocument/definition")
-      assert.message("definition request failed").is_truthy(result)
-      assert.is_not_nil(result[1])
-      assert.is_not_nil(result[1].uri)
-      local text = result[1].uri
+      local text = try_lsp_req({3, 20}, "textDocument/definition",
+      function(result)
+        if not result[1] or not type(result[1].uri) == "string" then return nil end
+        return result[1].uri
+      end)
+      assert.message("definition request never received parseable data").is_truthy(text)
       assert.has_all(text, {"tests/fixtures/example-lean3-project/test/test1.lean"})
     end)
   end)
@@ -57,23 +62,24 @@ describe('basic lsp', function()
   it('lean 4', function()
     vim.api.nvim_command("edit lua/tests/fixtures/example-lean4-project/Test.lean")
     helpers.wait_for_ready_lsp()
-    vim.wait(6000)
 
     it('hover', function()
-      local result = try_lsp_req({3, 20}, "textDocument/hover")
-      assert.message("hover request failed").is_truthy(result)
-      assert.is_not_nil(result.contents)
-      assert.is_not_nil(result.contents.value)
-      local text = result.contents.value
+      local text = try_lsp_req({3, 20}, "textDocument/hover",
+      function(result)
+        if not result.contents or not type(result.contents.value) == "string" then return nil end
+        return result.contents.value
+      end)
+      assert.message("hover request never received parseable data").is_truthy(text)
       assert.has_all(text, {"test : Nat"})
     end)
 
     it('definition', function()
-      local result = try_lsp_req({3, 20}, "textDocument/definition")
-      assert.message("definition request failed").is_truthy(result)
-      assert.is_not_nil(result[1])
-      assert.is_not_nil(result[1].targetUri)
-      local text = result[1].targetUri:lower()
+      local text = try_lsp_req({3, 20}, "textDocument/definition",
+      function(result)
+        if not result[1] or not type(result[1].targetUri) == "string" then return nil end
+        return result[1].targetUri:lower()
+      end)
+      assert.message("definition request never received parseable data").is_truthy(text)
       -- case-insensitive because MacOS FS is case-insensitive
       assert.has_all(text, {("tests/fixtures/example-lean4-project/Test/Test1.lean"):lower()})
     end)
