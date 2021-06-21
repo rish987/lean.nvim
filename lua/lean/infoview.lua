@@ -122,12 +122,30 @@ function infoview.set_update()
   end
 end
 
-function infoview.is_open() return infoview._infoviews[get_idx()] ~= nil end
+function infoview.is_open(idx)
+  local this_idx = idx or get_idx()
+  local this_infoview = infoview._infoviews[this_idx]
+  return this_infoview and this_infoview.open and this_infoview.data
+end
+
+function infoview.is_closed(idx)
+  local this_idx = idx or get_idx()
+  local this_infoview = infoview._infoviews[this_idx]
+  return this_infoview and not this_infoview.open
+end
 
 function infoview.ensure_open()
   local infoview_idx = get_idx()
 
-  if infoview.is_open() then return infoview._infoviews[infoview_idx] end
+  if infoview.is_open(infoview_idx) then return infoview._infoviews[infoview_idx].data end
+
+  if not infoview._infoviews[infoview_idx] then
+    -- TODO: make auto-open configurable by
+    -- reading the default 'open' value from config
+    infoview._infoviews[infoview_idx] = {data = nil, open = true}
+  end
+
+  if infoview.is_closed(infoview_idx) then return end
 
   local infoview_bufnr = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_name(infoview_bufnr, _INFOVIEW_BUF_NAME .. ":" .. infoview_idx)
@@ -151,12 +169,15 @@ function infoview.ensure_open()
   ]], infoview_idx))
   vim.api.nvim_set_current_win(current_window)
 
-  infoview._infoviews[infoview_idx] = { bufnr = infoview_bufnr, window = window }
+  infoview._infoviews[infoview_idx].data = { bufnr = infoview_bufnr, window = window }
 
-  return infoview._infoviews[infoview_idx]
+  return infoview._infoviews[infoview_idx].data
 end
 
-infoview.open = infoview.ensure_open
+function infoview.open()
+  infoview._infoviews[get_idx()].open = true
+  return infoview.ensure_open()
+end
 
 -- Close all open infoviews (across all tabs).
 function infoview.close_all()
@@ -167,18 +188,17 @@ end
 
 -- Close the infoview associated with the current window.
 function infoview.close()
-  if not infoview.is_open() then return end
-  local current_infoview = infoview._teardown(get_idx())
-  vim.api.nvim_win_close(current_infoview.window, true)
+  local this_infoview = infoview.is_open()
+  if not this_infoview then return end
+  vim.api.nvim_win_close(this_infoview.window, true)
+  infoview._teardown(get_idx())
   infoview.set_update()
 end
 
 -- Teardown internal state for an infoview window.
 function infoview._teardown(infoview_idx)
-  local current_infoview = infoview._infoviews[infoview_idx]
-  infoview._infoviews[infoview_idx] = nil
-
-  return current_infoview
+  infoview._infoviews[infoview_idx].data = nil
+  infoview._infoviews[infoview_idx].open = false
 end
 
 function infoview.toggle()
@@ -187,9 +207,9 @@ end
 
 --- Retrieve the current combined contents of the infoview as a string.
 function infoview.get_info_lines()
-  if not infoview.is_open() then return end
-  local infoview_info = infoview.open()
-  return table.concat(vim.api.nvim_buf_get_lines(infoview_info.bufnr, 0, -1, true), "\n")
+  local this_infoview = infoview.is_open()
+  if not this_infoview then return end
+  return table.concat(vim.api.nvim_buf_get_lines(this_infoview.bufnr, 0, -1, true), "\n")
 end
 
 return infoview

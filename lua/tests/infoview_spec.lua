@@ -7,9 +7,10 @@ require('tests.helpers').setup {
   lsp3 = { enable = true },
 }
 describe('infoview', function()
+  local win = vim.api.nvim_get_current_win()
+
   vim.api.nvim_command("edit lua/tests/fixtures/example-lean3-project/test.lean")
 
-  local win = vim.api.nvim_get_current_win()
   local infoview_info = infoview.open()
 
   describe('initial', function()
