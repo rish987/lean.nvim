@@ -6,10 +6,10 @@ local M = {}
 function M.set_augroup(name, autocmds)
   vim.api.nvim_exec(string.format([[
     augroup %s
-      autocmd!
+      autocmd! %s * <buffer>
       %s
     augroup END
-  ]], name, autocmds), false)
+  ]], name, name, autocmds), false)
 end
 
 return M
