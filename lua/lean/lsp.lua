@@ -24,7 +24,14 @@ function lsp.plain_goal(bufnr, handler)
   -- boundaries in normal mode.
   local params = vim.lsp.util.make_position_params()
   params.position.character = params.position.character + 1
-  return vim.lsp.buf_request(bufnr, "$/lean/plainGoal", params, handler)
+  -- luacheck:ignore
+  local id_map, cancel = vim.lsp.buf_request(bufnr, "$/lean/plainGoal", params, handler)
+  cancel()
+  -- This doesn't work either:
+  --
+  --for client_id, req_id in pairs(id_map) do
+  --  vim.lsp.get_client_by_id(client_id).cancel_request(req_id)
+  --end
 end
 
 -- Fetch term goal state information from the server.
