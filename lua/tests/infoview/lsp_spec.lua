@@ -25,6 +25,16 @@ helpers.setup {
   lsp3 = { enable = true },
 }
 describe('infoview', function()
+  it('immediate close', function()
+    vim.api.nvim_command("edit lua/tests/fixtures/example-lean3-project/test.lean")
+    helpers.wait_for_ready_lsp()
+    infoview.update()
+    infoview.close()
+    vim.wait(5000, function()
+      assert.is_not.has_match("Error", vim.api.nvim_exec("messages", true), nil, true)
+    end)
+  end)
+  infoview.open()
   it('lean 3', function()
     before_each(function()
       vim.api.nvim_command("edit lua/tests/fixtures/example-lean3-project/test.lean")
@@ -66,6 +76,7 @@ describe('infoview', function()
   local win = vim.api.nvim_get_current_win()
 
   vim.api.nvim_command("tabnew")
+  infoview.open()
 
   local winnew = vim.api.nvim_get_current_win()
 

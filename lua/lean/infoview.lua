@@ -26,9 +26,38 @@ local function get_idx()
   return vim.api.nvim_win_get_tabpage(0)
 end
 
+function infoview.update_request(idx)
+  return function(bufnr, method, params, handler)
+    local metadata = {enable = true}
+    local map, cancel_func = vim.lsp.buf_request(bufnr, method, params, function(...)
+      if not metadata.enable then return false end
+      handler(...)
+      end)
+    vim.list_extend(infoview._infoviews[idx].req_metas, {metadata})
+    return map, cancel_func
+  end
+end
+
+function infoview.cancel_all(idx)
+  idx = idx or get_idx()
+
+  -- TODO: this shouldn't be necessary; the reason it currently is is that we
+  -- don't remove the LeanInfoviewClose augroup on _teardown(), so on close()
+  -- _teardown() is called twice
+  if infoview._infoviews[idx] == nil then return end
+
+  for _, req_meta in pairs(infoview._infoviews[idx].req_metas) do
+    req_meta.enable = false
+  end
+  infoview._infoviews[idx].req_metas = {}
+end
+
 function infoview.update()
+  local idx = get_idx()
+  infoview.cancel_all(idx)
   local infoview_bufnr = infoview.open().bufnr
-  local _update = vim.b.lean3 and lean3.update_infoview or function(set_lines)
+  local request_fn = infoview.update_request(idx)
+  local _update = vim.b.lean3 and lean3.update_infoview(idx) or function(set_lines)
     return leanlsp.plain_goal(0, function(_, _, goal)
       leanlsp.plain_term_goal(0, function(_, _, term_goal)
         local lines = components.goal(goal)
@@ -36,8 +65,8 @@ function infoview.update()
         vim.list_extend(lines, components.term_goal(term_goal))
         vim.list_extend(lines, components.diagnostics())
         set_lines(lines)
-      end)
-    end)
+      end, request_fn)
+    end, request_fn)
   end
 
   return _update(function(lines)
@@ -121,7 +150,7 @@ function infoview.ensure_open()
   ]], infoview_idx))
   vim.api.nvim_set_current_win(current_window)
 
-  infoview._infoviews[infoview_idx] = { bufnr = infoview_bufnr, window = window }
+  infoview._infoviews[infoview_idx] = { bufnr = infoview_bufnr, window = window, req_metas = {}}
 
   infoview.set_update()
   return infoview._infoviews[infoview_idx]
@@ -146,6 +175,7 @@ end
 
 -- Teardown internal state for an infoview window.
 function infoview._teardown(infoview_idx)
+  infoview.cancel_all(infoview_idx)
   local current_infoview = infoview._infoviews[infoview_idx]
   infoview._infoviews[infoview_idx] = nil
 
