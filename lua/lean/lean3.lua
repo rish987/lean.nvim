@@ -1,4 +1,5 @@
 local find_project_root = require('lspconfig.util').root_pattern('leanpkg.toml')
+local dirname = require('lspconfig.util').path.dirname
 
 local components = require('lean.infoview.components')
 local subprocess_check_output = require('lean._util').subprocess_check_output
@@ -30,14 +31,21 @@ local _STANDARD_LIBRARY_PATHS = '.*/lean--3.+/lib/'
 
 --- Detect whether the current buffer is a Lean 3 file.
 function lean3.__detect()
-  local path = vim.api.nvim_buf_get_name(0)
-  if path:match(_STANDARD_LIBRARY_PATHS) then return true end
+  local path = vim.uri_to_fname(vim.uri_from_bufnr(0))
+  if vim.fn.executable"elan" then
+    local version_string = (require"lean._util".subprocess_check_output
+      { command = "lean", args = {"--version"}, cwd = dirname(path) })[1]
+    local _, _, version_num = version_string:find("version (%d+)%.%d+%.%d+")
+    if version_num == "3" then return true end
+  else
+    if path:match(_STANDARD_LIBRARY_PATHS) then return true end
 
-  local project_root = find_project_root(path)
-  if project_root then
-    local result = vim.fn.readfile(project_root .. '/leanpkg.toml')
-    for _, line in ipairs(result) do
-      if line:match(_PROJECT_MARKER) then return true end
+    local project_root = find_project_root(path)
+    if project_root then
+      local result = vim.fn.readfile(project_root .. '/leanpkg.toml')
+      for _, line in ipairs(result) do
+        if line:match(_PROJECT_MARKER) then return true end
+      end
     end
   end
 
