@@ -259,7 +259,7 @@ end
 --- Configure the infoview to update when this buffer is active.
 function infoview.make_buffer_focusable()
   -- because FileType can happen after BufEnter
-  infoview.maybe_autoopen()
+  infoview.maybe_autoopen() infoview.__update()
   infoview.get_current_infoview():focus_on_current_buffer()
 
   -- WinEnter is necessary for the edge case where you have

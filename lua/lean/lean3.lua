@@ -29,25 +29,29 @@ local _STANDARD_LIBRARY_PATHS = '.*/lean--3.+/lib/'
 --    * the only even prime number
 --    * the number of problems you have after using regex to solve a problem
 
---- Detect whether the current buffer is a Lean 3 file.
-function lean3.__detect()
+--- Detect whether the current buffer is a Lean 3 file using regex matching.
+function lean3.__detect_regex()
   local path = vim.uri_to_fname(vim.uri_from_bufnr(0))
-  if vim.fn.executable"elan" then
-    local version_string = (require"lean._util".subprocess_check_output
-      { command = "lean", args = {"--version"}, cwd = dirname(path) })[1]
-    local _, _, version_num = version_string:find("version (%d+)%.%d+%.%d+")
-    if version_num == "3" then return true end
-  else
-    if path:match(_STANDARD_LIBRARY_PATHS) then return true end
+  if path:match(_STANDARD_LIBRARY_PATHS) then return true end
 
-    local project_root = find_project_root(path)
-    if project_root then
-      local result = vim.fn.readfile(project_root .. '/leanpkg.toml')
-      for _, line in ipairs(result) do
-        if line:match(_PROJECT_MARKER) then return true end
-      end
+  local project_root = find_project_root(path)
+  if project_root then
+    local result = vim.fn.readfile(project_root .. '/leanpkg.toml')
+    for _, line in ipairs(result) do
+      if line:match(_PROJECT_MARKER) then return true end
     end
   end
+
+  return false
+end
+
+--- Detect whether the current buffer is a Lean 3 file using elan.
+function lean3.__detect_elan()
+  local path = vim.uri_to_fname(vim.uri_from_bufnr(0))
+  local version_string = (require"lean._util".subprocess_check_output
+    { command = "lean", args = {"--version"}, cwd = dirname(path) })[1]
+  local _, _, version_num = version_string:find("version (%d+)%.%d+%.%d+")
+  if version_num == "3" then return true end
 
   return false
 end
