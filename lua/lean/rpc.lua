@@ -140,6 +140,7 @@ local function connect(bufnr)
       sess.connect_err = err
     else
       sess.session_id = result.sessionId
+      sess.connect_err = nil
     end
     sess.on_connected:notify_all()
     return err
@@ -167,7 +168,7 @@ end
 
 function rpc.open()
   local bufnr = vim.api.nvim_get_current_buf()
-  if sessions[bufnr] == nil then
+  if sessions[bufnr] == nil or sessions[bufnr].connect_err then
     connect(bufnr)
   elseif sessions[bufnr].closed then
     sessions[bufnr]:close()
