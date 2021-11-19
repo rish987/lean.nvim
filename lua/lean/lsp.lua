@@ -4,11 +4,11 @@ local util = require"lean._util"
 function lsp.enable(opts)
   opts.commands = vim.tbl_extend("keep", opts.commands or {}, {
     LeanPlainGoal = {
-      function (...) lsp.plain_goal(vim.lsp.util.make_position_params(), ...) end;
+      function (...) lsp.plain_goal(util.make_position_params(), ...) end;
       description = "Describe the current tactic state."
     };
     LeanPlainTermGoal = {
-      function (...) lsp.plain_term_goal(vim.lsp.util.make_position_params(), ...) end;
+      function (...) lsp.plain_term_goal(util.make_position_params(), ...) end;
       description = "Describe the expected type of the current term."
     };
   })

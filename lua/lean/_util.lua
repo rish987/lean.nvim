@@ -218,6 +218,23 @@ function M.position_params_valid(params)
   return true
 end
 
+--- Temporary substitute for backwards compatability following neovim/neovim#15907.
+function M.make_position_params()
+  local row, col = unpack(vim.api.nvim_win_get_cursor(0))
+  row = row - 1
+  local line = vim.api.nvim_buf_get_lines(0, row, row+1, true)[1]
+  if not line then
+    return { line = 0; character = 0; }
+  end
+  local utf32col, _ = vim.str_utfindex(line, col)
+  col = utf32col
+
+  return {
+    textDocument = { uri = vim.uri_from_bufnr(0) };
+    position = { line = row; character = col; }
+  }
+end
+
 M.wait_timer = a.wrap(function(timeout, handler) vim.defer_fn(handler, timeout) end, 2)
 
 return M

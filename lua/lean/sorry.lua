@@ -19,7 +19,7 @@ end
 ---      { sorry },
 ---      { sorry },
 function sorry.fill()
-  local params = vim.lsp.util.make_position_params()
+  local params = require('lean._util').make_position_params()
   local responses = vim.lsp.buf_request_sync(0, '$/lean/plainGoal', params)
 
   for _, response in pairs(responses) do
