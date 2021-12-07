@@ -74,6 +74,7 @@ local Pin = {next_id = 1}
 ---@field pin Pin
 ---@field diff_pin Pin
 ---@field pins Pin[]
+---@field focus_pin boolean
 ---@field pins_set table<number, Pin> @mapping from pin ID to Pin corresponding to `self.pins`
 local Info = {}
 
@@ -102,6 +103,13 @@ local diff_pin_hl_group = "LeanNvimDiffPin"
 vim.highlight.create(diff_pin_hl_group, {
   cterm = 'underline',
   ctermbg = '7',
+  gui   = 'underline',
+}, true)
+
+local curr_pin_hl_group = "LeanNvimCurrPin"
+vim.highlight.create(curr_pin_hl_group, {
+  cterm = 'underline',
+  ctermbg = '39',
   gui   = 'underline',
 }, true)
 
@@ -454,6 +462,7 @@ function Info:new()
     pins = {},
     pins_set = {},
     parent_infoviews = {},
+    focus_pin = true,
   }
   table.insert(infoview._info_by_id, new_info)
 
@@ -488,12 +497,15 @@ function Info:add_pin()
   local new_params = vim.deepcopy(self.pin.__ui_position_params)
   table.insert(self.pins, self.pin)
   self.pins_set[self.pin.id] = self.pin
-  set_augroup("LeanInfoviewShowPin", "", self.pin.bufdiv.buf)
+  self.pin:hide_extmark()
   self:maybe_show_pin_extmark(tostring(self.pin.id))
   self.pin.render_header = true
   self.pin:render()
 
   self:__new_current_pin()
+  if not self.focus_pin then
+    self.pin:show_extmark(nil, curr_pin_hl_group)
+  end
   self.pin:move(new_params)
 
   self:render()
@@ -583,8 +595,29 @@ end
 --- Move the current pin to the specified location.
 ---@param params UIParams
 function Info:move_pin(params)
+  if not self.focus_pin then return end
   if self.auto_diff_pin then self:__update_auto_diff_pin(params) end
   self.pin:move(params)
+end
+
+--- Toggle whether the current pin is focused.
+function Info:toggle_focus_pin(params)
+  if self.focus_pin then
+    self:unfocus_curr_pin()
+  else
+    self:focus_curr_pin(params)
+  end
+end
+
+function Info:focus_curr_pin(params)
+  self.pin:hide_extmark()
+  self.focus_pin = true
+  self:move_pin(params)
+end
+
+function Info:unfocus_curr_pin()
+  self.pin:show_extmark(nil, curr_pin_hl_group)
+  self.focus_pin = false
 end
 
 --- Toggle auto diff pin mode.
@@ -1215,6 +1248,15 @@ function infoview.toggle_auto_diff_pin(clear)
   if not is_lean_buffer() then return end
   infoview.open()
   infoview.get_current_infoview().info:toggle_auto_diff_pin(clear)
+end
+
+function infoview.toggle_focus_curr_pin()
+  if not is_lean_buffer() then return end
+
+  local iv = infoview.get_current_infoview()
+  if iv ~= nil then
+    iv.info:toggle_focus_pin(util.make_position_params())
+  end
 end
 
 function infoview.enable_widgets()
