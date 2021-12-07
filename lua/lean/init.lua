@@ -82,6 +82,7 @@ function lean.setup(opts)
     command LeanInfoviewEnableWidgets :lua require'lean.infoview'.enable_widgets()
     command LeanInfoviewDisableWidgets :lua require'lean.infoview'.disable_widgets()
     command -nargs=? LeanGotoInfoview :lua require'lean.infoview'.go_to(<args>)
+    command LeanInfoviewNewInfo :lua require'lean.infoview'.new_info()
 
     command LeanAbbreviationsReverseLookup :lua require'lean.abbreviations'.show_reverse_lookup()
 
