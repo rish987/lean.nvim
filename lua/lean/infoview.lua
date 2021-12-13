@@ -645,10 +645,8 @@ function Pin:__update_extmark_style(buf, line, col)
   local end_col = 0
   if buf_line then
     if col < #buf_line then
-      -- vim.str_utfindex rounds up to the next UTF16 index if in the middle of a UTF8 sequence;
-      -- so convert next byte to UTF16 and back to get UTF8 index of next codepoint
-      local _, next_utf16 = vim.str_utfindex(buf_line, col + 1)
-      end_col = (col < #buf_line) and vim.str_byteindex(buf_line, next_utf16, true)
+      -- str_utf_end uses 1-indexed column; set_extmark uses exclusive end_col
+      end_col = col + vim.str_utf_end(buf_line, col + 1) + 1
     else
       end_col = col
     end
